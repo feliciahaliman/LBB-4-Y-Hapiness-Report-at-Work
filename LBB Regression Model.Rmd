@@ -1,0 +1,244 @@
+---
+title: "4. LBB Regression Model"
+author: "Felicia Haliman"
+date: "4/24/2021"
+output:
+  html_document:
+    theme: cosmo
+    highlight: tango
+    toc: true
+    toc_depth: 3
+    toc_float:
+      collapsed: false
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# The Data
+
+Propose
+
+This time i want to research regarding hapiness at Y work in some company in Indonesia, i want to know the actual condition before i sign out from there.
+
+The data
+
+I want to know more the process if i be a researcher and want to execute some case if one day i got this role. n of data, i got 67 responses Google Form. I use Maslow Pyramid to get the variables with X is the factors and Y is for The Office. For details of the form, you can check it https://forms.gle/ZYfm1vhoEXvD4X9i8.
+
+```{r}
+knitr::include_graphics("Assets/download.jpg")
+```
+
+# Library
+
+First, i will attach the library, the purpose to make this not hassle
+
+```{r warning = FALSE, message = FALSE}
+library(dplyr)
+library(GGally)
+library(MLmetrics)
+library(lmtest)
+library(car)
+```
+
+# Sample
+
+$$n=N1+N.e²$$
+Info:
+n: Total Sample
+N: Total Population
+e: Toleration Sample (0,05/5%)
+
+FYI: Y company has total 80 members, based on Slovin methode, i will count how many min sample
+
+```{r}
+N <- 80
+e <- 0.05*0.05
+Ne <- e*80
+y <- 1+Ne
+Sample <- N/y
+Sample
+```
+
+Min sample 66.66667 ~ 67 sample
+
+## Read Data
+
+```{r}
+work <- read.csv("Data/Happiness at Work (Responses) - Form Responses 1.csv")
+work
+```
+`legend`:\
+- Timestamp: date and time got the response.\
+- X1: Self Actualisation, people are self-aware, concerned with personal growth, less concerned with the opinions of others, and interested in fulfilling their potential.\
+- x2: Esteem Needs, People need to sense that they are valued and by others and feel that they are making a contribution to the world.\
+- x3: Belongings & Love Needs, At this level, the need for emotional relationships drives human behavior. Some of the things that satisfy this need include, Friendships, Romantic attachments, Family, Social groups, community groups, Churches and religious organizations.\
+- x4: Safety Needs, at this level, the needs for security and safety become primary, Financial security, Health and wellness, Safety against accidents and injury.\
+- x5: Physiological Needs, the basic physiological needs are probably fairly apparent—these include the things that are vital to our survival. Some examples of physiological needs include, food, water, breathing, homeostasis.\
+
+## Inspects the data
+
+```{r}
+glimpse(work)
+```
+## Check the blank
+```{r}
+anyNA(work)
+```
+Means no N/A, great!
+
+## Subsetting data
+```{r}
+w1 <- work[,-c(1)]
+```
+
+## Check Outliers
+```{r}
+boxplot(w1)
+```
+
+`insight`: No outliers
+
+# Corellation
+
+```{r}
+ggcorr(w1, label = TRUE, label_size = 2.9, hjust = 1, layout.exp = 2)
+```
+
+Through this we got insight:\
+1. Column Timestamp automatically not in to this function because we cant count timestamp.\
+2. All variables has positive corellation.\
+3. X2 the highest variable who has strong corellation with X5.\
+
+# Regression Models
+
+```{r}
+w2 <- lm(X5 ~ X2, w1)
+w2
+```
+
+```{r}
+summary(w2)
+```
+
+`Insight`: From this, we got Multiple R-squared: 0.5734, Adjusted R-squared: 0.5669.
+
+# Plot
+
+```{r}
+plot(w1$X2, w1$X5)
+```
+
+# Variable Predictor (Stepwise Regression - Backward)
+
+```{r}
+w3 <- lm(X5 ~ ., w1)
+step(w3, direction = "backward")
+```
+
+```{r}
+summary(lm(formula = X5 ~ X1 + X2 + X3 + X4, data = w1))
+```
+
+`Model`:
+- `W3`: X5 = 0.1155 + 0.2632(X1) + 0.3427(X2) + -0.1177(X3) + 0.4353(X4)
+- `W2`: x5 = 0.2616 + 0.8637(X2)
+
+# Model and Error
+
+First, we use variable X3 to predict and compare the actuall data
+W2
+```{r}
+predict(w2, data.frame(X2 = 5), interval = "confidence", level = 0.95)
+```
+
+W3
+```{r}
+predict(w3, data.frame(X1 = 5, X2 = 5, X3 = 5, X4 = 5), interval = "confidence", level = 0.95)
+```
+
+Error w2
+```{r}
+sqrt((5-4.580252)^2)
+```
+
+Error W3
+
+```{r}
+sqrt((5-4.73258)^2)
+```
+
+`Insight`: Error from w3 is smaller than w2 and data from w3 is better than w2
+
+# Evaluation Models
+
+Normality
+
+```{r}
+hist(w2$residuals, breaks = 20)
+```
+
+```{r}
+shapiro.test(w2$residuals)
+```
+
+```{r}
+hist(w3$residuals, breaks = 20)
+```
+
+```{r}
+shapiro.test(w3$residuals)
+```
+
+`insight`: data from w2 have p-value under < 0,05, for w3 > 0,05, means the data from w3 is spread well, H0 for w3 but H1 for w2.
+
+# Heteroscedasticity
+
+```{r}
+plot(w1$X2, w3$residuals)
+abline(h = 0, col = "red")
+```
+
+```{r}
+bptest(w3)
+```
+
+```{r}
+plot(w1$X2, w2$residuals)
+abline(h = 0, col = "red")
+```
+
+```{r}
+bptest(w2)
+```
+
+`Insight`: Both of data not have Heteroscedasticity because P-Value > 0,05
+
+# Variance Inflation Factor (Multicollinearity)
+
+```{r}
+vif(w3)
+```
+
+*w2 cant test with VIF because they only have 1 variable.
+
+x < 10, not found multicollinearity between the variables.
+
+# Conclusion
+
+- Min sample 66.66667 ~ 67 sample\
+- Means no N/A, great!\
+- insight: No outliers\
+- Through this we got insight: Column Timestamp automatically not in to this function because we cant count timestamp, All variables has positive corellation, X2 the highest variable who has strong corellation with X5.\
+- Insight: From this, we got Multiple R-squared: 0.5734, Adjusted R-squared: 0.5669.\
+- Model: W3: X5 = 0.1155 + 0.2632(X1) + 0.3427(X2) + -0.1177(X3) + 0.4353(X4) ; W2: x5 = 0.2616 + 0.8637(X2)\
+- Insight: Error from w3 is smaller than w2 and data from w3 is better than w2\
+- insight: data from w2 have p-value under < 0,05, for w3 > 0,05, means the data from w3 is spread well, H0 for w3 but H1 for w2.\
+- Insight: Both of data not have Heteroscedasticity because P-Value > 0,05\
+
+Minimal sample i must count is 67 sample, and no N/A, no outliers. The process is, first i drop the timestamp column, and find out about the correlation. I got X2 have the highest variable who has strong corellation with X5 and 2 models X5 = 0.1155 + 0.2632(X1) + 0.3427(X2) + -0.1177(X3) + 0.4353(X4) & x5 = 0.2616 + 0.8637(X2). Error from w3 is smaller than w2 and data from w3 is better than w2, no heteroscedasticity and H0 for W3 and H1 for W2.
+
+
+
